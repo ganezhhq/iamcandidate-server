@@ -618,6 +618,19 @@ export interface StoredSmtpSettings extends Omit<SmtpSettings, "password" | "has
   encryptedPassword?: string
 }
 
+/**
+ * Core settings → Mail: the system mailbox (admin-managed, one per deployment)
+ * used for account emails such as password resets. `appUrl` is the web app's
+ * address, used to build the links in those emails.
+ */
+export interface CoreMailSettings extends SmtpSettings {
+  appUrl: string
+}
+
+export interface StoredCoreMailSettings extends StoredSmtpSettings {
+  appUrl: string
+}
+
 /* ------------------------------------------------------------------ */
 /* Google Drive                                                        */
 /* ------------------------------------------------------------------ */

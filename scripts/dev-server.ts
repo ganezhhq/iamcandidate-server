@@ -24,6 +24,7 @@ import dynalite from "dynalite"
 
 import { PUBLIC_PORTFOLIO_ROUTES, portfolioRoutes } from "../src/handlers/portfolio"
 import { PUBLIC_PRICING_ROUTES, pricingRoutes } from "../src/handlers/pricing"
+import { coreSettingsRoutes } from "../src/handlers/core-settings"
 import { authRoutes, PUBLIC_ROUTES, userRoutes } from "../src/handlers/users"
 import {
   applicationRoutes,
@@ -134,6 +135,7 @@ const api = createHandler(
     ...dashboardRoutes,
     ...authRoutes,
     ...userRoutes,
+    ...coreSettingsRoutes,
     ...pricingRoutes,
     ...portfolioRoutes,
     ...emailRoutes,

@@ -39,6 +39,15 @@ export const accessRequestInput = z.strictObject({
 })
 export type AccessRequestInput = z.output<typeof accessRequestInput>
 
+/** Public: asks for a password-reset email. */
+export const forgotPasswordInput = z.strictObject({ email })
+
+/** Public: sets a new password with the token from the reset email. */
+export const resetPasswordInput = z.strictObject({
+  token: z.string().trim().min(20).max(200),
+  newPassword,
+})
+
 /** Email is the login id and is not editable; recreate the user to change it. */
 export const updateUserInput = z
   .strictObject({

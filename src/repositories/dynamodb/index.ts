@@ -25,6 +25,7 @@ export {
   settingsRepository,
 } from "./settings.repository"
 export { EntityRepository } from "./entity.repository"
+export { passwordResetsRepository } from "./password-resets.repository"
 export { normalizeEmail, usersRepository } from "./users.repository"
 
 export const repositories = {

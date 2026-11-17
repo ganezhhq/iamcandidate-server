@@ -127,7 +127,8 @@ Resources:
           {"requestId":"$context.requestId","ip":"$context.identity.sourceIp","method":"$context.httpMethod",
           "path":"$context.path","routeKey":"$context.routeKey","status":"$context.status",
           "latencyMs":"$context.responseLatency","integrationError":"$context.integrationErrorMessage"}
-      # Authentication is built in: every route except POST /auth/login checks
+      # Authentication is built in: every route except the public ones (sign-in,
+      # password reset, access requests; see PUBLIC_ROUTES in src/handlers) checks
       # the bearer token in the Lambda (src/lib/auth.ts). The LaTeX compiler holds
       # no secrets, so its route is checked here by SessionAuthorizer instead.
       Auth:
@@ -1018,6 +1019,18 @@ Resources:
             ApiId: !Ref HttpApi
             Method: POST
             Path: /auth/login
+        ForgotPassword:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /auth/forgot-password
+        ResetPassword:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /auth/reset-password
         RefreshSession:
           Type: HttpApi
           Properties:
@@ -1138,6 +1151,30 @@ Resources:
             ApiId: !Ref HttpApi
             Method: DELETE
             Path: /access-requests/{id}
+        GetCoreMailSettings:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /admin/core-settings/mail
+        SaveCoreMailSettings:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: PUT
+            Path: /admin/core-settings/mail
+        TestCoreMailSettings:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /admin/core-settings/mail/test
+        SendCoreTestEmail:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /admin/core-settings/mail/send-test
 
   UsersFunctionLogs:
     Type: AWS::Logs::LogGroup

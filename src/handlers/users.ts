@@ -6,19 +6,38 @@ import {
   accessRequestInput,
   changePasswordInput,
   createUserInput,
+  forgotPasswordInput,
   loginInput,
+  resetPasswordInput,
   updateUserInput,
 } from "../schemas/users"
 import { usersService } from "../services/users.service"
 import { pathId } from "./crud"
 
-/** Routes that don't need a session: signing in and asking for an account. */
-export const PUBLIC_ROUTES = ["POST /auth/login", "POST /access-requests"]
+/** Routes that don't need a session: signing in, password reset and asking for an account. */
+export const PUBLIC_ROUTES = [
+  "POST /auth/login",
+  "POST /auth/forgot-password",
+  "POST /auth/reset-password",
+  "POST /access-requests",
+]
 
 export const authRoutes: Routes = {
   "POST /auth/login": async (ctx) => {
     const { email, password } = validate(loginInput, ctx.body, "request body")
     return ok(await usersService.login(email, password))
+  },
+  /** Public. Always 204 (except when email isn't set up), whether or not the email has an account. */
+  "POST /auth/forgot-password": async (ctx) => {
+    const { email } = validate(forgotPasswordInput, ctx.body, "request body")
+    await usersService.forgotPassword(email)
+    return noContent()
+  },
+  /** Public: the token from the reset email is the credential. */
+  "POST /auth/reset-password": async (ctx) => {
+    const { token, newPassword } = validate(resetPasswordInput, ctx.body, "request body")
+    await usersService.resetPassword(token, newPassword)
+    return noContent()
   },
   "POST /auth/refresh": async (ctx) => ok(await usersService.refresh(ctx.userId)),
   "GET /auth/me": async (ctx) => ok(await usersService.me(ctx.userId)),

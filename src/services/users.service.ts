@@ -1,3 +1,5 @@
+import { createHash, randomBytes } from "node:crypto"
+
 import { getConfig } from "../lib/config"
 import { AppError, BadRequestError, ConflictError, NotFoundError } from "../lib/errors"
 import { createId, nowIso } from "../lib/ids"
@@ -13,6 +15,7 @@ import type {
 } from "../models"
 import {
   accessRequestsRepository,
+  passwordResetsRepository,
   repositories,
   settingsRepository,
   usersRepository,
@@ -20,7 +23,30 @@ import {
 import { batchDelete, queryPartitionKeys, userPk } from "../repositories/dynamodb/table"
 import { filesRepository } from "../repositories/s3/files.repository"
 import type { AccessRequestInput, CreateUserInput, UpdateUserInput } from "../schemas/users"
+import { coreSettingsService } from "./core-settings.service"
 import { templatesService } from "./templates.service"
+
+/** How long a reset link works, and the gap before another email can go to the same account. */
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000
+const RESET_RESEND_COOLDOWN_MS = 60 * 1000
+
+const hashResetToken = (token: string) => createHash("sha256").update(token).digest("hex")
+
+const invalidResetLink = () =>
+  new BadRequestError("This reset link is invalid or has expired. Ask for a new one.")
+
+function resetEmailText(name: string, link: string): string {
+  return [
+    `Hi ${name},`,
+    "",
+    "Someone asked to reset the password for your IamCandidate account.",
+    "Open this link to choose a new password. It works once, for the next 30 minutes:",
+    "",
+    link,
+    "",
+    "If you didn't ask for this, you can ignore this email. Your password won't change.",
+  ].join("\n")
+}
 
 /** API shape: never includes the password hash. */
 export function toPublicUser({ passwordHash: _passwordHash, ...user }: StoredAccount): UserAccount {
@@ -149,6 +175,63 @@ export const usersService = {
       passwordHash: await hashPassword(newPassword),
       updatedAt: nowIso(),
     })
+  },
+
+  /* Password reset (public) ------------------------------------------ */
+
+  /**
+   * Emails a single-use reset link. Says nothing about whether the email has
+   * an account: unknown, disabled and throttled addresses return the same way,
+   * and send failures are logged rather than returned. The one visible error is
+   * when no system mailbox is set up, which is the same for every address.
+   */
+  async forgotPassword(email: string): Promise<void> {
+    if (!(await coreSettingsService.isMailConfigured())) {
+      throw new AppError(
+        503,
+        "SERVICE_UNAVAILABLE",
+        "Password reset by email isn't set up yet. Ask your admin to reset your password.",
+      )
+    }
+    const account = await usersRepository.findByEmail(email)
+    if (!account || account.disabled) return
+
+    const now = Date.now()
+    const lastSentAt = await passwordResetsRepository.lastSentAt(account.id)
+    if (lastSentAt && now - lastSentAt < RESET_RESEND_COOLDOWN_MS) return
+
+    const token = randomBytes(32).toString("base64url")
+    await passwordResetsRepository.create(hashResetToken(token), {
+      userId: account.id,
+      expiresAt: now + RESET_TOKEN_TTL_MS,
+    })
+    await passwordResetsRepository.markSent(account.id, now, RESET_RESEND_COOLDOWN_MS)
+
+    const link = `${await coreSettingsService.appUrl()}/reset-password?token=${encodeURIComponent(token)}`
+    try {
+      await coreSettingsService.sendSystemMail({
+        to: account.email,
+        subject: "Reset your IamCandidate password",
+        text: resetEmailText(account.name, link),
+      })
+    } catch (error) {
+      logger.error("Password reset email failed", { userId: account.id, error: serializeError(error) })
+    }
+  },
+
+  /** Sets a new password with a token from the reset email; every outstanding link then stops working. */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const reset = await passwordResetsRepository.get(hashResetToken(token))
+    if (!reset || reset.expiresAt <= Date.now()) throw invalidResetLink()
+    const account = await usersRepository.get(reset.userId)
+    if (!account || account.disabled) throw invalidResetLink()
+
+    await usersRepository.replace({
+      ...account,
+      passwordHash: await hashPassword(newPassword),
+      updatedAt: nowIso(),
+    })
+    await passwordResetsRepository.deleteForUser(account.id)
   },
 
   /* Admin ----------------------------------------------------------- */

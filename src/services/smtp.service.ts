@@ -37,7 +37,7 @@ function toPublic(stored: StoredSmtpSettings | undefined): SmtpSettings {
 
 /* Guard against using the API as a proxy into private networks ------- */
 
-async function assertAllowedHost(host: string) {
+export async function assertAllowedHost(host: string) {
   if (getConfig().allowPrivateSmtpHosts) return
   let addresses: Array<{ address: string }>
   try {
@@ -56,7 +56,7 @@ async function assertAllowedHost(host: string) {
 
 /* Connection --------------------------------------------------------- */
 
-function transport(settings: Omit<SmtpSettings, "password" | "hasPassword">, password: string) {
+export function transport(settings: Omit<SmtpSettings, "password" | "hasPassword">, password: string) {
   return nodemailer.createTransport({
     host: settings.host,
     port: settings.port,
@@ -71,7 +71,7 @@ function transport(settings: Omit<SmtpSettings, "password" | "hasPassword">, pas
 }
 
 /** Turns nodemailer errors into messages a user can act on (no credentials included). */
-function smtpError(error: unknown, settings: { host: string; port: number }): AppError {
+export function smtpError(error: unknown, settings: { host: string; port: number }): AppError {
   const code = (error as { code?: string }).code
   const detail = error instanceof Error ? error.message.slice(0, 300) : String(error)
   logger.warn("SMTP failure", { code, host: settings.host, port: settings.port, detail })
